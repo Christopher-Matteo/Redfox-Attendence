@@ -80,7 +80,7 @@ export function DashboardView({
   useEffect(() => {
     async function fetchBranches() {
       try {
-        const res = await fetch('/api/admin/branches');
+        const res = await fetch('/api/admin/branches', { cache: 'no-store' });
         const data = await res.json();
         if (res.ok) setBranches(data.branches || []);
       } catch (err) {
@@ -95,7 +95,7 @@ export function DashboardView({
     try {
       setLoading(true);
       const url = `/api/admin/attendance/daily?date=${selectedDate}&branchId=${selectedBranch}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (res.ok) {
         setSummary(data.summary);
@@ -149,7 +149,7 @@ export function DashboardView({
       }
 
       setEditingRow(null);
-      loadDailyData();
+      await loadDailyData();
       onVerificationUpdate();
     } catch (err) {
       alert('Failed to update status');

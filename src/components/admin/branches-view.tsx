@@ -53,7 +53,7 @@ export function BranchesView() {
   const loadBranches = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/branches');
+      const res = await fetch('/api/admin/branches', { cache: 'no-store' });
       const data = await res.json();
       if (res.ok) setBranches(data.branches || []);
     } catch (err) {
@@ -101,10 +101,14 @@ export function BranchesView() {
         }),
       });
 
+      const data = await res.json();
       if (res.ok) {
-        loadBranches();
+        setBranches((prev) =>
+          prev.map((b) => (b.id === branch.id ? { ...b, status: newStatus } : b))
+        );
+        await loadBranches();
       } else {
-        alert('Failed to update branch status');
+        alert(data.error || 'Failed to update branch status');
       }
     } catch {
       alert('Network error');
@@ -114,7 +118,7 @@ export function BranchesView() {
   const handleViewQr = async (branchId: number) => {
     try {
       setQrLoading(true);
-      const res = await fetch(`/api/admin/branches/${branchId}/qr`);
+      const res = await fetch(`/api/admin/branches/${branchId}/qr`, { cache: 'no-store' });
       const data = await res.json();
       if (res.ok && data.branch) {
         setQrModalData(data.branch);
@@ -161,7 +165,7 @@ export function BranchesView() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !code) {
+    if (!name.trim() || !code.trim()) {
       alert('Branch name and code are required');
       return;
     }
@@ -172,28 +176,34 @@ export function BranchesView() {
         const res = await fetch('/api/admin/branches', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, code }),
+          body: JSON.stringify({ name: name.trim(), code: code.trim() }),
         });
         const data = await res.json();
         if (!res.ok) {
           alert(data.error || 'Failed to create branch');
           return;
         }
+        if (data.branch) {
+          setBranches((prev) => [...prev, data.branch]);
+        }
       } else if (modalMode === 'edit' && editingId) {
         const res = await fetch(`/api/admin/branches/${editingId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, code, status }),
+          body: JSON.stringify({ name: name.trim(), code: code.trim(), status }),
         });
         const data = await res.json();
         if (!res.ok) {
           alert(data.error || 'Failed to update branch');
           return;
         }
+        if (data.branch) {
+          setBranches((prev) => prev.map((b) => (b.id === data.branch.id ? data.branch : b)));
+        }
       }
 
       setIsModalOpen(false);
-      loadBranches();
+      await loadBranches();
     } catch {
       alert('Network error');
     } finally {

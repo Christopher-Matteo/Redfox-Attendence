@@ -45,6 +45,19 @@ export async function POST(req: NextRequest) {
       existingMap.set(r.employee_id, r);
     }
 
+    // Fetch temporary shift changes for this date
+    const tempShifts = db.prepare(`
+      SELECT esc.employee_id, s.name as shift_name
+      FROM employee_shift_changes esc
+      JOIN shifts s ON esc.shift_id = s.id
+      WHERE esc.effective_date = ?
+    `).all(date) as any[];
+
+    const tempShiftMap = new Map<number, string>();
+    for (const ts of tempShifts) {
+      tempShiftMap.set(ts.employee_id, ts.shift_name);
+    }
+
     let markedCount = 0;
 
     const insertStmt = db.prepare(`
@@ -56,6 +69,7 @@ export async function POST(req: NextRequest) {
 
     const updateStmt = db.prepare(`
       UPDATE attendance SET
+        shift_name = ?,
         attendance_status = 'Absent',
         manual_override = 1,
         updated_by_admin = 1,
@@ -67,6 +81,7 @@ export async function POST(req: NextRequest) {
       for (const emp of employees) {
         const rec = existingMap.get(emp.id);
         const isWeekOff = emp.weekly_off.toLowerCase() === dayName.toLowerCase();
+        const finalShift = tempShiftMap.get(emp.id) || emp.shift_name;
 
         // If today is employee's normal week off, don't mark absent unless desired
         if (isWeekOff && !rec) {
@@ -75,11 +90,11 @@ export async function POST(req: NextRequest) {
 
         if (!rec) {
           // No record at all -> Insert as Absent
-          insertStmt.run(emp.id, emp.branch_id, date, emp.shift_name, now, now);
+          insertStmt.run(emp.id, emp.branch_id, date, finalShift, now, now);
           markedCount++;
         } else if (!rec.check_in_time && (!rec.attendance_status || rec.attendance_status === 'Not Marked' || rec.attendance_status === 'Pending')) {
           // Record exists but no check-in and unverified/unmarked status -> update to Absent
-          updateStmt.run(now, emp.id, date);
+          updateStmt.run(finalShift, now, emp.id, date);
           markedCount++;
         }
       }

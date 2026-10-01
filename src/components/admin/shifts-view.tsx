@@ -54,8 +54,8 @@ export function ShiftsView() {
     try {
       setLoading(true);
       const [sRes, eRes] = await Promise.all([
-        fetch('/api/admin/shifts'),
-        fetch('/api/admin/employees'),
+        fetch('/api/admin/shifts', { cache: 'no-store' }),
+        fetch('/api/admin/employees', { cache: 'no-store' }),
       ]);
       const [sData, eData] = await Promise.all([sRes.json(), eRes.json()]);
       if (sRes.ok) setShifts(sData.shifts || []);
@@ -100,7 +100,8 @@ export function ShiftsView() {
     try {
       const res = await fetch(`/api/admin/shifts/${shift.id}`, { method: 'DELETE' });
       if (res.ok) {
-        loadData();
+        setShifts((prev) => prev.filter((s) => s.id !== shift.id));
+        await loadData();
       } else {
         const err = await res.json();
         alert(err.error || 'Failed to delete shift');
@@ -112,7 +113,7 @@ export function ShiftsView() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !startTime || !endTime) {
+    if (!name.trim() || !startTime || !endTime) {
       alert('Please fill out all fields');
       return;
     }
@@ -123,28 +124,34 @@ export function ShiftsView() {
         const res = await fetch('/api/admin/shifts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, start_time: startTime, end_time: endTime }),
+          body: JSON.stringify({ name: name.trim(), start_time: startTime, end_time: endTime }),
         });
+        const data = await res.json();
         if (!res.ok) {
-          const err = await res.json();
-          alert(err.error || 'Failed to add shift');
+          alert(data.error || 'Failed to add shift');
           return;
+        }
+        if (data.shift) {
+          setShifts((prev) => [...prev, data.shift]);
         }
       } else if (modalMode === 'edit' && editingId) {
         const res = await fetch(`/api/admin/shifts/${editingId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, start_time: startTime, end_time: endTime }),
+          body: JSON.stringify({ name: name.trim(), start_time: startTime, end_time: endTime }),
         });
+        const data = await res.json();
         if (!res.ok) {
-          const err = await res.json();
-          alert(err.error || 'Failed to update shift');
+          alert(data.error || 'Failed to update shift');
           return;
+        }
+        if (data.shift) {
+          setShifts((prev) => prev.map((s) => (s.id === data.shift.id ? data.shift : s)));
         }
       }
 
       setIsModalOpen(false);
-      loadData();
+      await loadData();
     } catch {
       alert('Network error');
     } finally {
@@ -172,8 +179,8 @@ export function ShiftsView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          employee_id: tempEmpId,
-          shift_id: tempShiftId,
+          employee_id: Number(tempEmpId),
+          shift_id: Number(tempShiftId),
           effective_date: tempDate,
         }),
       });
@@ -182,6 +189,7 @@ export function ShiftsView() {
       if (res.ok) {
         alert(data.message || 'Temporary shift override scheduled successfully!');
         setIsTempModalOpen(false);
+        await loadData();
       } else {
         alert(data.error || 'Failed to schedule shift change');
       }

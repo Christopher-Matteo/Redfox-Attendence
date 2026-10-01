@@ -26,21 +26,24 @@ export async function GET(req: NextRequest) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const db = await getDb();
 
-  // Get active employees
+  const startDate = `${monthParam}-01`;
+  const endDate = `${monthParam}-${String(daysInMonth).padStart(2, '0')}`;
+
+  // Get active employees or employees with attendance in this month
   let empQuery = `
     SELECT 
       e.id as employee_id,
       e.full_name as employee_name,
       e.weekly_off,
       b.id as branch_id,
-      b.name as branch_name,
-      s.name as default_shift_name
+      COALESCE(b.name, 'Unassigned Branch') as branch_name,
+      COALESCE(s.name, 'Unassigned Shift') as default_shift_name
     FROM employees e
-    JOIN branches b ON e.branch_id = b.id
-    JOIN shifts s ON e.shift_id = s.id
-    WHERE e.status = 'active'
+    LEFT JOIN branches b ON e.branch_id = b.id
+    LEFT JOIN shifts s ON e.shift_id = s.id
+    WHERE (e.status = 'active' OR e.id IN (SELECT employee_id FROM attendance WHERE attendance_date >= ? AND attendance_date <= ?))
   `;
-  const empParams: unknown[] = [];
+  const empParams: unknown[] = [startDate, endDate];
 
   if (branchId && branchId !== 'all') {
     empQuery += ` AND e.branch_id = ?`;
@@ -55,9 +58,6 @@ export async function GET(req: NextRequest) {
   const employees = db.prepare(empQuery).all(...empParams) as any[];
 
   // Fetch all attendance for this month
-  const startDate = `${monthParam}-01`;
-  const endDate = `${monthParam}-${String(daysInMonth).padStart(2, '0')}`;
-
   const attendanceRecords = db.prepare(`
     SELECT * FROM attendance
     WHERE attendance_date >= ? AND attendance_date <= ?
@@ -100,10 +100,22 @@ export async function GET(req: NextRequest) {
       const dayDate = new Date(year, month - 1, d);
       const dayName = DAYS_OF_WEEK[dayDate.getDay()];
       const isPastOrToday = dateStr <= todayStr;
+      const isDateToday = dateStr === todayStr;
       const isWeekOffDay = emp.weekly_off.toLowerCase() === dayName.toLowerCase();
 
       const rec = attMap.get(`${emp.employee_id}_${dateStr}`);
-      const shiftName = tempShiftMap.get(`${emp.employee_id}_${dateStr}`) || (rec ? rec.shift_name : null) || emp.default_shift_name;
+      const tempShift = tempShiftMap.get(`${emp.employee_id}_${dateStr}`);
+
+      let shiftName = tempShift;
+      if (!shiftName) {
+        if (rec && rec.check_in_time) {
+          shiftName = rec.shift_name || emp.default_shift_name;
+        } else if (!isDateToday && rec && rec.shift_name) {
+          shiftName = rec.shift_name;
+        } else {
+          shiftName = emp.default_shift_name;
+        }
+      }
 
       let status = '-';
       let checkIn = null;

@@ -44,7 +44,7 @@ export function PendingVerificationView({
   const fetchPending = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/pending-verifications');
+      const res = await fetch('/api/admin/pending-verifications', { cache: 'no-store' });
       const data = await res.json();
       if (res.ok) {
         setPendingList(data.pending || []);

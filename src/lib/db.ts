@@ -283,6 +283,7 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
 }
 
 function initTables(db: SqliteDatabaseAdapter) {
+  db.pragma('foreign_keys = ON;');
   db.exec(`
     CREATE TABLE IF NOT EXISTS admins (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

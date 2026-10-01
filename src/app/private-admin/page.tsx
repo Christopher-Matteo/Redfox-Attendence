@@ -45,7 +45,7 @@ export default function AdminPage() {
   // Load pending verification count for sidebar badge
   const updatePendingCount = async () => {
     try {
-      const res = await fetch('/api/admin/pending-verifications');
+      const res = await fetch('/api/admin/pending-verifications', { cache: 'no-store' });
       const data = await res.json();
       if (res.ok) {
         setPendingCount(data.count || 0);

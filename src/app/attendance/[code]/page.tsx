@@ -75,7 +75,7 @@ export default function AttendancePage({ params }: { params: Promise<{ code: str
       try {
         setLoading(true);
         setErrorMsg(null);
-        const res = await fetch(`/api/attendance/branch/${branchCode}`);
+        const res = await fetch(`/api/attendance/branch/${branchCode}`, { cache: 'no-store' });
         const data = await res.json();
 
         if (!res.ok) {
@@ -103,7 +103,7 @@ export default function AttendancePage({ params }: { params: Promise<{ code: str
 
     async function checkStatus() {
       try {
-        const res = await fetch(`/api/attendance/employee-status?employeeId=${selectedEmpId}`);
+        const res = await fetch(`/api/attendance/employee-status?employeeId=${selectedEmpId}`, { cache: 'no-store' });
         const data = await res.json();
         if (res.ok) {
           setEmployeeStatus(data);
@@ -256,7 +256,7 @@ export default function AttendancePage({ params }: { params: Promise<{ code: str
       });
 
       // Refresh employee status
-      const statusRes = await fetch(`/api/attendance/employee-status?employeeId=${selectedEmpId}`);
+      const statusRes = await fetch(`/api/attendance/employee-status?employeeId=${selectedEmpId}`, { cache: 'no-store' });
       if (statusRes.ok) {
         const sData = await statusRes.json();
         setEmployeeStatus(sData);

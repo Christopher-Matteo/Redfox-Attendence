@@ -75,8 +75,8 @@ export function MonthlyReportView() {
     async function loadFilters() {
       try {
         const [bRes, eRes] = await Promise.all([
-          fetch('/api/admin/branches'),
-          fetch('/api/admin/employees'),
+          fetch('/api/admin/branches', { cache: 'no-store' }),
+          fetch('/api/admin/employees', { cache: 'no-store' }),
         ]);
         const bData = await bRes.json();
         const eData = await eRes.json();
@@ -93,7 +93,7 @@ export function MonthlyReportView() {
     try {
       setLoading(true);
       const url = `/api/admin/reports/monthly?month=${selectedMonth}&branchId=${selectedBranch}&employeeId=${selectedEmployee}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (res.ok) {
         setReports(data.reports || []);

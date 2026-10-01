@@ -74,8 +74,8 @@ export function DailyAttendanceView() {
     async function loadFilters() {
       try {
         const [bRes, eRes] = await Promise.all([
-          fetch('/api/admin/branches'),
-          fetch('/api/admin/employees'),
+          fetch('/api/admin/branches', { cache: 'no-store' }),
+          fetch('/api/admin/employees', { cache: 'no-store' }),
         ]);
         const bData = await bRes.json();
         const eData = await eRes.json();
@@ -92,7 +92,7 @@ export function DailyAttendanceView() {
     try {
       setLoading(true);
       const url = `/api/admin/attendance/daily?date=${selectedDate}&branchId=${selectedBranch}&employeeId=${selectedEmployee}&status=${selectedStatus}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (res.ok) {
         setAttendanceList(data.attendance || []);
@@ -124,7 +124,7 @@ export function DailyAttendanceView() {
       if (res.ok) {
         alert(data.message);
         setShowMarkAbsentModal(false);
-        loadAttendance();
+        await loadAttendance();
       } else {
         alert(data.error || 'Failed to mark absent');
       }
@@ -149,8 +149,9 @@ export function DailyAttendanceView() {
 
     try {
       setEditSubmitting(true);
+      let res: Response;
       if (editingRow.attendanceId) {
-        await fetch(`/api/admin/attendance/${editingRow.attendanceId}`, {
+        res = await fetch(`/api/admin/attendance/${editingRow.attendanceId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -161,7 +162,7 @@ export function DailyAttendanceView() {
           }),
         });
       } else {
-        await fetch(`/api/admin/attendance/manual`, {
+        res = await fetch(`/api/admin/attendance/manual`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -175,8 +176,14 @@ export function DailyAttendanceView() {
         });
       }
 
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Failed to update record');
+        return;
+      }
+
       setEditingRow(null);
-      loadAttendance();
+      await loadAttendance();
     } catch {
       alert('Failed to update record');
     } finally {

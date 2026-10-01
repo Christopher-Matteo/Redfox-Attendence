@@ -22,7 +22,10 @@ export async function GET(req: NextRequest) {
   const dateObj = new Date(year, month - 1, day);
   const dayName = DAYS_OF_WEEK[dateObj.getDay()];
 
-  // Fetch all active employees (filtered by branch/employee if requested)
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(now);
+  const isToday = dateParam === todayStr;
+
+  // Fetch employees: active employees OR employees with attendance records on this date
   let empQuery = `
     SELECT 
       e.id as employee_id,
@@ -30,17 +33,17 @@ export async function GET(req: NextRequest) {
       e.weekly_off,
       e.status as employee_status,
       b.id as branch_id,
-      b.name as branch_name,
+      COALESCE(b.name, 'Unassigned Branch') as branch_name,
       s.id as shift_id,
-      s.name as default_shift_name,
-      s.start_time as shift_start,
-      s.end_time as shift_end
+      COALESCE(s.name, 'Unassigned Shift') as default_shift_name,
+      COALESCE(s.start_time, '09:00') as shift_start,
+      COALESCE(s.end_time, '19:00') as shift_end
     FROM employees e
-    JOIN branches b ON e.branch_id = b.id
-    JOIN shifts s ON e.shift_id = s.id
-    WHERE e.status = 'active'
+    LEFT JOIN branches b ON e.branch_id = b.id
+    LEFT JOIN shifts s ON e.shift_id = s.id
+    WHERE (e.status = 'active' OR e.id IN (SELECT employee_id FROM attendance WHERE attendance_date = ?))
   `;
-  const empParams: unknown[] = [];
+  const empParams: unknown[] = [dateParam];
 
   if (branchId && branchId !== 'all') {
     empQuery += ` AND e.branch_id = ?`;
@@ -89,7 +92,23 @@ export async function GET(req: NextRequest) {
 
   for (const emp of activeEmployees) {
     const att = attendanceMap.get(emp.employee_id);
-    const activeShift = tempShiftMap.get(emp.employee_id) || (att ? att.shift_name : null) || emp.default_shift_name;
+    const tempShift = tempShiftMap.get(emp.employee_id);
+
+    // Active shift resolution:
+    // 1. Temporary shift override for this date has highest priority.
+    // 2. If employee completed check-in, preserve the recorded shift at check-in time.
+    // 3. For historical past dates, preserve recorded shift from attendance record.
+    // 4. For today and future dates without check-in, use current assigned shift.
+    let activeShift = tempShift;
+    if (!activeShift) {
+      if (att && att.check_in_time) {
+        activeShift = att.shift_name || emp.default_shift_name;
+      } else if (!isToday && att && att.shift_name) {
+        activeShift = att.shift_name;
+      } else {
+        activeShift = emp.default_shift_name;
+      }
+    }
     const isNormalWeekOff = emp.weekly_off.toLowerCase() === dayName.toLowerCase();
 
     let computedStatus = 'Not Marked';
