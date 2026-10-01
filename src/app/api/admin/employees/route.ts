@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const branchId = url.searchParams.get('branchId');
   const status = url.searchParams.get('status');
 
-  const db = getDb();
+  const db = await getDb();
   let query = `
     SELECT 
       e.*,
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     const validStatus = status === 'inactive' ? 'inactive' : 'active';
     const now = new Date().toISOString();
 
-    const db = getDb();
+    const db = await getDb();
     const result = db.prepare(`
       INSERT INTO employees (full_name, branch_id, shift_id, weekly_off, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)

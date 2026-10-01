@@ -1,30 +1,269 @@
-import Database from 'better-sqlite3';
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
+import os from 'os';
 import crypto from 'crypto';
+import initSqlJs from 'sql.js';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'attendance.db');
-export const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
-
-// Ensure data and photo directories exist
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-if (!fs.existsSync(PHOTOS_DIR)) {
-  fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+export interface RunResult {
+  lastInsertRowid: number;
+  changes: number;
 }
 
-let dbInstance: Database.Database | null = null;
+export interface Statement {
+  get<T = any>(...params: any[]): T | undefined;
+  all<T = any>(...params: any[]): T[];
+  run(...params: any[]): RunResult;
+}
 
-export function getDb(): Database.Database {
-  if (!dbInstance) {
-    dbInstance = new Database(DB_PATH);
-    dbInstance.pragma('journal_mode = WAL');
-    dbInstance.pragma('foreign_keys = ON');
-    initTables(dbInstance);
+export class SqliteDatabaseAdapter {
+  private db: any;
+  private saveCallback: () => void;
+  private inTransaction = false;
+
+  constructor(sqlDb: any, saveCallback?: () => void) {
+    this.db = sqlDb;
+    this.saveCallback = saveCallback || (() => {});
   }
-  return dbInstance;
+
+  private save() {
+    if (!this.inTransaction) {
+      this.saveCallback();
+    }
+  }
+
+  exec(sql: string) {
+    this.db.exec(sql);
+    this.save();
+  }
+
+  pragma(pragmaStr: string) {
+    try {
+      this.db.exec(`PRAGMA ${pragmaStr}`);
+    } catch {
+      // Ignore unsupported PRAGMAs in Wasm
+    }
+  }
+
+  prepare(sql: string): Statement {
+    const adapter = this;
+    return {
+      get<T = any>(...params: any[]): T | undefined {
+        const flattened = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+        const stmt = adapter.db.prepare(sql);
+        stmt.bind(flattened);
+        let result: T | undefined = undefined;
+        if (stmt.step()) {
+          result = stmt.getAsObject() as T;
+        }
+        stmt.free();
+        return result;
+      },
+
+      all<T = any>(...params: any[]): T[] {
+        const flattened = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+        const stmt = adapter.db.prepare(sql);
+        stmt.bind(flattened);
+        const rows: T[] = [];
+        while (stmt.step()) {
+          rows.push(stmt.getAsObject() as T);
+        }
+        stmt.free();
+        return rows;
+      },
+
+      run(...params: any[]): RunResult {
+        const flattened = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+        const stmt = adapter.db.prepare(sql);
+        stmt.run(flattened);
+        stmt.free();
+
+        let lastInsertRowid = 0;
+        try {
+          const res = adapter.db.exec('SELECT last_insert_rowid() as id');
+          lastInsertRowid = res[0]?.values[0]?.[0] || 0;
+        } catch {
+          // Ignore
+        }
+
+        adapter.save();
+        return { lastInsertRowid: Number(lastInsertRowid), changes: 1 };
+      },
+    };
+  }
+
+  transaction<T>(fn: (...args: any[]) => T): (...args: any[]) => T {
+    return (...args: any[]): T => {
+      this.inTransaction = true;
+      try {
+        this.db.exec('BEGIN TRANSACTION');
+      } catch {
+        // Ignore if already open
+      }
+      try {
+        const result = fn(...args);
+        try {
+          this.db.exec('COMMIT');
+        } catch {
+          // Ignore
+        }
+        this.inTransaction = false;
+        this.saveCallback();
+        return result;
+      } catch (err) {
+        try {
+          this.db.exec('ROLLBACK');
+        } catch {
+          // Ignore rollback error if no transaction is active
+        }
+        this.inTransaction = false;
+        throw err;
+      }
+    };
+  }
+}
+
+// Get safe writable directory (handles Vercel / AWS Lambda read-only filesystem)
+export function getWritableDataDir(): string {
+  const isServerless =
+    process.env.VERCEL === '1' ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME !== undefined;
+
+  if (isServerless) {
+    const tmpDir = path.join(os.tmpdir(), 'redfox_data');
+    if (!fs.existsSync(tmpDir)) {
+      try {
+        fs.mkdirSync(tmpDir, { recursive: true });
+        return tmpDir;
+      } catch {
+        return os.tmpdir();
+      }
+    }
+    return tmpDir;
+  }
+
+  // Local directory
+  const localDir = path.join(process.cwd(), 'data');
+  if (!fs.existsSync(localDir)) {
+    try {
+      fs.mkdirSync(localDir, { recursive: true });
+    } catch {
+      return os.tmpdir();
+    }
+  }
+  return localDir;
+}
+
+export function getPhotosDir(): string {
+  const isServerless =
+    process.env.VERCEL === '1' ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME !== undefined;
+
+  if (isServerless) {
+    const tmpDir = path.join(os.tmpdir(), 'redfox_photos');
+    if (!fs.existsSync(tmpDir)) {
+      try {
+        fs.mkdirSync(tmpDir, { recursive: true });
+        return tmpDir;
+      } catch {
+        return os.tmpdir();
+      }
+    }
+    return tmpDir;
+  }
+
+  const localDir = path.join(process.cwd(), 'data', 'photos');
+  if (!fs.existsSync(localDir)) {
+    try {
+      fs.mkdirSync(localDir, { recursive: true });
+    } catch {
+      return os.tmpdir();
+    }
+  }
+  return localDir;
+}
+
+export const PHOTOS_DIR = getPhotosDir();
+
+let dbInstance: SqliteDatabaseAdapter | null = null;
+let dbInitPromise: Promise<SqliteDatabaseAdapter> | null = null;
+
+export async function getDb(): Promise<SqliteDatabaseAdapter> {
+  if (dbInstance) return dbInstance;
+  if (dbInitPromise) return dbInitPromise;
+
+  dbInitPromise = (async () => {
+    // Locate sql-wasm.wasm
+    const potentialWasmPaths = [
+      path.join(process.cwd(), 'public', 'sql-wasm.wasm'),
+      path.join(process.cwd(), 'data', 'sql-wasm.wasm'),
+      path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+      path.join(__dirname, 'sql-wasm.wasm'),
+      path.join(__dirname, '..', '..', 'public', 'sql-wasm.wasm'),
+      path.join(__dirname, '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+    ];
+
+    let wasmUint8: Uint8Array | undefined;
+    for (const p of potentialWasmPaths) {
+      try {
+        if (fs.existsSync(p)) {
+          const wasmBinary = fs.readFileSync(p);
+          wasmUint8 = new Uint8Array(wasmBinary.buffer, wasmBinary.byteOffset, wasmBinary.byteLength);
+          break;
+        }
+      } catch {
+        // try next path
+      }
+    }
+
+    // Serverless fallback: if binary cannot be resolved from disk in Lambda, fetch from CDN
+    if (!wasmUint8) {
+      try {
+        const res = await fetch('https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.wasm');
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer();
+          wasmUint8 = new Uint8Array(arrayBuffer);
+        }
+      } catch (err) {
+        console.warn('Wasm CDN fallback error:', err);
+      }
+    }
+
+    const SQL = await initSqlJs(wasmUint8 ? ({ wasmBinary: wasmUint8 } as any) : undefined);
+
+    const dataDir = getWritableDataDir();
+    const dbPath = path.join(dataDir, 'attendance.db');
+
+    let rawDb: any;
+    if (fs.existsSync(dbPath)) {
+      try {
+        const fileBuffer = fs.readFileSync(dbPath);
+        rawDb = new SQL.Database(fileBuffer);
+      } catch {
+        rawDb = new SQL.Database();
+      }
+    } else {
+      rawDb = new SQL.Database();
+    }
+
+    const saveToDisk = () => {
+      try {
+        const data = rawDb.export();
+        const buffer = Buffer.from(data);
+        fs.writeFileSync(dbPath, buffer);
+      } catch (err) {
+        console.error('Failed to persist database file:', err);
+      }
+    };
+
+    const adapter = new SqliteDatabaseAdapter(rawDb, saveToDisk);
+    initTables(adapter);
+    saveToDisk();
+
+    dbInstance = adapter;
+    return dbInstance;
+  })();
+
+  return dbInitPromise;
 }
 
 // Password hashing utilities using built-in scrypt
@@ -43,7 +282,7 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
   }
 }
 
-function initTables(db: Database.Database) {
+function initTables(db: SqliteDatabaseAdapter) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS admins (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

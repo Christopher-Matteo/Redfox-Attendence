@@ -18,7 +18,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return errorResponse('Invalid attendance status', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
     const existing = db.prepare('SELECT * FROM attendance WHERE id = ?').get(attendanceId);
     if (!existing) {
       return errorResponse('Attendance record not found', 404);

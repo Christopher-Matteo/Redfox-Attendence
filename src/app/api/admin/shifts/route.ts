@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const { errorResponse: authError } = requireAdmin(req);
   if (authError) return authError;
 
-  const db = getDb();
+  const db = await getDb();
   const shifts = db.prepare(`
     SELECT 
       s.*,
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const db = getDb();
+    const db = await getDb();
 
     const result = db.prepare(`
       INSERT INTO shifts (name, start_time, end_time, created_at, updated_at)

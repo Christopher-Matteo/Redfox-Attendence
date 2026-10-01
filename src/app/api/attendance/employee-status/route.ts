@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     return errorResponse('Employee ID is required', 400);
   }
 
-  const db = getDb();
+  const db = await getDb();
   const empId = parseInt(employeeId, 10);
 
   // Form today's date in local YYYY-MM-DD

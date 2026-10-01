@@ -4,8 +4,8 @@ import { QrCode, MapPin, ArrowRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default function HomePage() {
-  const db = getDb();
+export default async function HomePage() {
+  const db = await getDb();
   const branches = db.prepare("SELECT * FROM branches WHERE status = 'active' ORDER BY name ASC").all() as any[];
 
   return (

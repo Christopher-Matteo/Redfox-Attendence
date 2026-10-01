@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 import { requireAdmin, errorResponse } from '@/lib/api-helpers';
-import { PHOTOS_DIR } from '@/lib/db';
+import { getPhotosDir } from '@/lib/db';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ filename: string }> }) {
   const { errorResponse: authError } = requireAdmin(req);
@@ -16,7 +16,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
 
   // Prevent path traversal
   const safeFilename = path.basename(filename);
-  const filePath = path.join(PHOTOS_DIR, safeFilename);
+  const photosDir = getPhotosDir();
+  const filePath = path.join(photosDir, safeFilename);
 
   if (!fs.existsSync(filePath)) {
     return errorResponse('Photo file not found or already deleted', 404);

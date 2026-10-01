@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const { errorResponse: authError } = requireAdmin(req);
   if (authError) return authError;
 
-  const db = getDb();
+  const db = await getDb();
   const branches = db.prepare(`
     SELECT b.*, 
       (SELECT COUNT(*) FROM employees e WHERE e.branch_id = b.id AND e.status = 'active') as active_employees_count,
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('Invalid branch code format', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
 
     // Check duplicate code
     const existing = db.prepare('SELECT id FROM branches WHERE code = ?').get(cleanCode);

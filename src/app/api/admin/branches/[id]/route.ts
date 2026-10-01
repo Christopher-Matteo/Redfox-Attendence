@@ -20,7 +20,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const cleanCode = code.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
     const validStatus = status === 'inactive' ? 'inactive' : 'active';
 
-    const db = getDb();
+    const db = await getDb();
 
     // Check code uniqueness excluding this branch
     const duplicate = db.prepare('SELECT id FROM branches WHERE code = ? AND id != ?').get(cleanCode, branchId);

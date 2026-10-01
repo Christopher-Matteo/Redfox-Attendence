@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const branchId = url.searchParams.get('branchId');
   const employeeId = url.searchParams.get('employeeId');
 
-  const db = getDb();
+  const db = await getDb();
 
   let query = `
     SELECT 

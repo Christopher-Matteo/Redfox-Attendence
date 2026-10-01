@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   const daysInMonth = new Date(year, month, 0).getDate();
-  const db = getDb();
+  const db = await getDb();
 
   // Get active employees
   let empQuery = `

@@ -24,7 +24,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const validStatus = status === 'inactive' ? 'inactive' : 'active';
     const now = new Date().toISOString();
 
-    const db = getDb();
+    const db = await getDb();
     db.prepare(`
       UPDATE employees
       SET full_name = ?, branch_id = ?, shift_id = ?, weekly_off = ?, status = ?, updated_at = ?
@@ -54,7 +54,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const empId = parseInt(resolvedParams.id, 10);
   if (isNaN(empId)) return errorResponse('Invalid employee ID', 400);
 
-  const db = getDb();
+  const db = await getDb();
   const emp = db.prepare('SELECT status FROM employees WHERE id = ?').get(empId) as { status: string } | undefined;
   if (!emp) return errorResponse('Employee not found', 404);
 

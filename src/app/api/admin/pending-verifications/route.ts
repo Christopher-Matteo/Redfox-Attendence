@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const { errorResponse: authError } = requireAdmin(req);
   if (authError) return authError;
 
-  const db = getDb();
+  const db = await getDb();
 
   // Fetch pending check-ins
   const pendingCheckIns = db.prepare(`

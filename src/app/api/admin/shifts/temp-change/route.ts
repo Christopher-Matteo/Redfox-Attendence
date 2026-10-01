@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('Employee ID, shift ID, and effective date (YYYY-MM-DD) are required', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
     const now = new Date().toISOString();
 
     // Upsert into employee_shift_changes

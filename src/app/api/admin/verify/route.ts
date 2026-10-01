@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('Invalid parameters provided', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
     const attendance = db.prepare('SELECT * FROM attendance WHERE id = ?').get(attendanceId) as {
       id: number;
       employee_id: number;

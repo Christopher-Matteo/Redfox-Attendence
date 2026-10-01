@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('New password must be at least 6 characters long', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
     const admin = db.prepare('SELECT * FROM admins WHERE id = ?').get(session.id) as any;
 
     if (!admin) return errorResponse('Admin user not found', 404);

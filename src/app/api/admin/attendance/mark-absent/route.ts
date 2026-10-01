@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('Date (YYYY-MM-DD) is required', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
     const now = new Date().toISOString();
 
     // Determine day of week

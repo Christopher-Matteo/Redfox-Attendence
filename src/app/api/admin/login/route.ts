@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('Username and password are required', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
     const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(username) as {
       id: number;
       username: string;

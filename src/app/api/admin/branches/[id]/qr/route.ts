@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const branchId = parseInt(resolvedParams.id, 10);
   if (isNaN(branchId)) return errorResponse('Invalid branch ID', 400);
 
-  const db = getDb();
+  const db = await getDb();
   const branch = db.prepare('SELECT * FROM branches WHERE id = ?').get(branchId) as {
     id: number;
     name: string;

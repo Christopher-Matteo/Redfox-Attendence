@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
     return errorResponse('Branch code is required', 400);
   }
 
-  const db = getDb();
+  const db = await getDb();
   const branch = db.prepare('SELECT id, name, code, status FROM branches WHERE code = ?').get(branchCode) as {
     id: number;
     name: string;

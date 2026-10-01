@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const employeeId = url.searchParams.get('employeeId');
   const statusFilter = url.searchParams.get('status');
 
-  const db = getDb();
+  const db = await getDb();
 
   // Determine day of the week for dateParam
   const [year, month, day] = dateParam.split('-').map(Number);

@@ -18,7 +18,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const now = new Date().toISOString();
-    const db = getDb();
+    const db = await getDb();
 
     db.prepare(`
       UPDATE shifts
@@ -42,7 +42,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const shiftId = parseInt(resolvedParams.id, 10);
   if (isNaN(shiftId)) return errorResponse('Invalid shift ID', 400);
 
-  const db = getDb();
+  const db = await getDb();
   // Check if assigned to any employees
   const assigned = db.prepare('SELECT COUNT(*) as count FROM employees WHERE shift_id = ?').get(shiftId) as { count: number };
   if (assigned && assigned.count > 0) {

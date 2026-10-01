@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('Attendance photo is required directly from device camera', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
     const empId = parseInt(employeeId, 10);
     const brId = parseInt(branchId, 10);
 

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('Employee ID, date (YYYY-MM-DD), and status are required', 400);
     }
 
-    const db = getDb();
+    const db = await getDb();
     const emp = db.prepare(`
       SELECT e.*, b.id as branch_id, s.name as shift_name
       FROM employees e
