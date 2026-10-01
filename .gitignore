@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Local databases and private temporary photos
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/photos/*
+!data/photos/.gitkeep
+
+# Environment variables
+.env
+.env*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / Editor files
+.DS_Store
+*.pem
+.vscode/
+.idea/
+Thumbs.db
